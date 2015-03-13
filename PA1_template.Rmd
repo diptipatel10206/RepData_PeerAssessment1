@@ -1,25 +1,195 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+Activity Monitoring Data (Peer Assessment #1)
+===========================================
+## Introduction
 
+This dataset consists of the number of steps taken in 5 minute intervals over a period of two months.  
 
-## Loading and preprocessing the data
+The variables included in this dataset are:
 
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
 
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
 
-## What is mean total number of steps taken per day?
+## Initiating Section
 
+Load packages if required
 
+```{r loadlibs, message=FALSE, warning=FALSE}
+require(lattice)
+require(plyr)
+require(dplyr)
+require(timeDate)
+require(xtable)
+```
 
-## What is the average daily activity pattern?
+Identify the source file required for this analysis
 
+```{r filename}
+ActivityFile<-"activity.csv" 
+```
 
+Initiate Error message for source file not found
 
-## Imputing missing values
+```{r msgNotFound}
+FileNotFoundMsg<-"Data file not found in working directory"
+```
 
+##
+##Reading Source File
+List all files in current working dir and Verify the data file exist in working directory.  If file exists then read data files else write error message.
 
+```{r readsource}
+dirfiles<-dir(".") 
+if (ActivityFile %in% dirfiles) {
+      Activity<- read.csv(ActivityFile)      
+}else {stop(FileNotFoundMsg)}
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+##
+## Total Steps, Mean and Median per Day
+This section  calulates the total number of steps, mean and median per day into a summary table ignoring the missing values in the dataset.
+
+```{r calculate}
+StepSummary<-
+      na.omit(Activity)%>%
+      group_by(date)%>%
+      summarize(Total.Steps = sum(steps),
+                Mean = mean(steps),
+                Median = median(steps))
+```
+##
+Here is the summary table 
+
+```{r showtable, results="asis"}
+StepSummary$date<-as.character(StepSummary$date)
+print(xtable(StepSummary), type= "html")
+```
+
+### Histogram
+A histogram of the total number of steps taken each day
+
+```{r showhist, fig.height=5}
+histogram(StepSummary$Total.Steps,
+          main="Histogram of Total Steps Each Day",
+          xlab="Total Steps")
+```
+
+##
+## What is the Average Daily Activity Pattern?
+
+In order to find the average daily activity pattern, calculate the Average Daily Activity Steps by interval omitting the NA values.
+
+```{r calculateIntervalAve}
+IntervalAverage<-
+      na.omit(Activity)%>%
+      group_by(interval)%>%
+      summarize(Average.Steps = mean(steps))
+```
+
+##
+Now to plot a time series line graph that shows the 5 minute interval that contains the maximum number of steps. 
+
+```{r plotIntervalAve, fig.height=5, fig.width=10}
+plot(IntervalAverage,
+     type="l",
+     main= "Average Steps Per 5 Minute Interval",
+     xlab="Intervals")
+```
+
+##
+Find the interval with the maximum average steps.
+
+```{r maxinterval}
+SrtAveInterval<-IntervalAverage%>%
+      arrange(desc(Average.Steps))
+      
+maxinterval<-SrtAveInterval$interval[1]
+```
+
+Based on the graph the maximum average steps was during the 5 minute interval of `r maxinterval`
+
+##
+## Imputing Missing Values
+This section is to identify differences between data with omiting values and data with imputed values.  First we calculate the number of NA values in the original dataset
+
+```{r naActivity}
+NAactivity<- sum(is.na(Activity))
+```
+
+The number of NAs in the original dataset is `r NAactivity`
+
+##
+Next we imput data using the average steps per interval.  For each missing data replace with the average steps for the corresponding interval. This code replaces NA with average steps by interval.
+
+```{r ImputingData}
+for (i in 1:nrow(Activity)){
+      if (is.na(Activity$steps[i])) {
+            Activity$steps[i]<-IntervalAverage$Average.Steps[match(Activity$interval[i],IntervalAverage$interval)]
+      }
+}
+```
+
+## 
+Now we can summmarize the data by calculating total steps, mean and median. 
+
+```{r calculate2}
+StepSummary2<-
+      Activity%>%
+      group_by(date)%>%
+      summarize(TotalSteps = sum(steps),
+                Mean = mean(steps),
+                Median = median(steps))
+```
+
+##
+Summarizing the data with imputing data give us this table.
+
+```{r showtable2, results="asis"}
+print(xtable(StepSummary2), type= "html")
+```
+
+### Histogram (Imputing Data)
+A histogram of the total number of steps taken each day with imputed data
+
+```{r showhist2, fig.height=5}
+histogram(StepSummary2$TotalSteps, 
+          main="Histogram of Total Steps Each Day (Imputing Data)",
+          xlab="Total Steps")
+```
+
+##
+##Are There Differences In Activity Patterns Between Weekdays And Weekends?
+
+To answer this question, first create a factor variable day with the values "weekday" and "weekend".
+
+```{r createfactor}
+Activity$day<- ifelse (isWeekday(Activity$date), "weekday",  "weekend")
+Activity$day<-as.factor(Activity$day)
+```
+
+The next step is to calculate the average steps by each interval by type of day.
+
+```{r calculate3}
+StepSummary3<-
+      Activity%>%
+      group_by(day,interval)%>%
+      summarize(Average.Steps = mean(steps))
+```
+
+###Time Series Plot
+The below plot shows the difference of the average number of steps per interval between weekday and weekend.  Based on the plot the higher averages is in the morning hours on weekdays but the overall higher average number of steps is on the weekends. 
+
+```{r daytypeplot}
+xyplot(Average.Steps~interval | day, 
+       data = StepSummary3, 
+       type = "l" ,
+       layout =c(1,2),
+       main = "Average Steps Across Weekdays and Weekends",
+       xlab = "Interval", 
+       ylab = "Average Number of Steps")
+```
+
+## 
+This concludes Peer Assessment 1. 
